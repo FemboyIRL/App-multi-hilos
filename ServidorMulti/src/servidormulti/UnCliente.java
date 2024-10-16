@@ -102,28 +102,27 @@ class UnCliente implements Runnable {
                     String comando = partes[0];
                     switch (comando) {
                         case "/msj":
+                            salida.writeUTF("Ingrese el mensaje a enviar");
+                            String mensajeEnviar = entrada.readUTF();
                             User usuarioRecibido = null;
                             if (partes[1].equals("-v")) {
                                 String usuariosRecibiendo = partes[2];
                                 String[] usuariosRecibiendoArray = usuariosRecibiendo.split(",");
                                 for (String usuarioRecibiendoNombre : usuariosRecibiendoArray) {
                                     User usuarioRecibiendo = UserRepository.getUserFromDB(usuarioRecibiendoNombre);
-
                                     for (Map.Entry<Integer, UnCliente> entry : ServidorMulti.clientes.entrySet()) {
                                         UnCliente cliente = entry.getValue();
                                         synchronized (cliente) {
                                             if (cliente.user.getName().equals(usuarioRecibiendo.getName())) {
                                                 System.out.println("Cliente encontrado en la posición: " + entry.getKey());
-                                                sendMessageToUser(usuarioRecibido, usuarioRecibiendo.getName(), "eeyyyyy");
+                                                sendMessageToUser(usuarioRecibido, usuarioRecibiendo.getName(), mensajeEnviar);
                                             }
                                         }
                                     }
                                 }
                                 break;
                             }
-
-                            sendMessageToUser(usuarioRecibido, partes[1], "hola papu como estas perro del mal");
-
+                            sendMessageToUser(usuarioRecibido, partes[1], mensajeEnviar);
                             break;
                         case "/ayuda":
 
