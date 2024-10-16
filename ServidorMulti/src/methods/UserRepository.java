@@ -10,6 +10,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import models.User;
+
 /**
  *
  * @author luisr
@@ -21,11 +22,12 @@ public class UserRepository {
         String sql = "INSERT INTO usuarios(nombre, password) VALUES(?, ?)";
 
         try (Connection conn = SQLiteConnectionMethods.connectToDatabase();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setString(1, user.getName());
             pstmt.setString(2, user.getPassword());
             pstmt.executeUpdate();
             System.out.println("Usuario registrado exitosamente: " + user.getName());
+            SQLiteConnectionMethods.closeConnection(conn);
         } catch (SQLException e) {
             System.out.println("Error al registrar usuario: " + e.getMessage());
         }
@@ -37,7 +39,7 @@ public class UserRepository {
         User user = null;
 
         try (Connection conn = SQLiteConnectionMethods.connectToDatabase();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setString(1, name);
             ResultSet rs = pstmt.executeQuery();
 
@@ -45,13 +47,15 @@ public class UserRepository {
                 int id = rs.getInt("id");
                 String password = rs.getString("password");
                 user = new User(id, name, password);
+
             } else {
                 System.out.println("Usuario no encontrado.");
             }
+            SQLiteConnectionMethods.closeConnection(conn);
         } catch (SQLException e) {
             System.out.println("Error al obtener usuario: " + e.getMessage());
         }
-        
-        return user; 
+
+        return user;
     }
 }

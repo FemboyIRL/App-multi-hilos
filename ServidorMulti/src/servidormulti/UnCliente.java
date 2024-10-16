@@ -4,6 +4,7 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.Socket;
+import java.util.Map;
 import methods.UserRepository;
 import models.User;
 
@@ -50,7 +51,7 @@ class UnCliente implements Runnable {
             this.user = user;
         } else {
             salida.writeUTF("Contraseña incorrecta");
-            loginToServer(user);
+            run();
         }
     }
 
@@ -65,17 +66,80 @@ class UnCliente implements Runnable {
         salida.writeUTF("Registro exitoso. Bienvenido, " + nombre + "!");
     }
 
+    private void sendMessageToUser(User usuarioRecibido, String nombre, String mensaje) throws IOException {
+        UnCliente clienteEncontrado = null;
+        usuarioRecibido = UserRepository.getUserFromDB(nombre);
+        if (usuarioRecibido == null) {
+            salida.writeUTF("El usuario " + nombre + " no existe");
+            return;
+        }
+        for (Map.Entry<Integer, UnCliente> entry : ServidorMulti.clientes.entrySet()) {
+            UnCliente cliente = entry.getValue();
+            synchronized (cliente) {
+                if (cliente.user.getName().equals(usuarioRecibido.getName())) {
+                    clienteEncontrado = cliente;
+                    System.out.println(clienteEncontrado.user.getName());
+                    System.out.println("Cliente encontrado en la posición: " + entry.getKey());
+                    break;
+                }
+            }
+        }
+        if (clienteEncontrado == null) {
+            salida.writeUTF("El usuario " + usuarioRecibido.getName() + " no esta conectado");
+            return;
+        }
+        clienteEncontrado.salida.writeUTF("Mensaje de |" + user.getName() + "|: " + mensaje);
+        salida.writeUTF("Mensaje enviado exitosamente");
+    }
+
     private void listenForMessages() {
         String mensaje;
         while (true) {
             try {
                 mensaje = entrada.readUTF();
-                for (UnCliente cliente : ServidorMulti.clientes.values()) {
-                    cliente.salida.writeUTF("|" + user.getName() + "|:" + mensaje);
+                if (mensaje.startsWith("/")) {
+                    String[] partes = mensaje.split(" ");
+                    String comando = partes[0];
+                    switch (comando) {
+                        case "/msj":
+                            User usuarioRecibido = null;
+                            if (partes[1].equals("-v")) {
+                                String usuariosRecibiendo = partes[2];
+                                String[] usuariosRecibiendoArray = usuariosRecibiendo.split(",");
+                                for (String usuarioRecibiendoNombre : usuariosRecibiendoArray) {
+                                    User usuarioRecibiendo = UserRepository.getUserFromDB(usuarioRecibiendoNombre);
+
+                                    for (Map.Entry<Integer, UnCliente> entry : ServidorMulti.clientes.entrySet()) {
+                                        UnCliente cliente = entry.getValue();
+                                        synchronized (cliente) {
+                                            if (cliente.user.getName().equals(usuarioRecibiendo.getName())) {
+                                                System.out.println("Cliente encontrado en la posición: " + entry.getKey());
+                                                sendMessageToUser(usuarioRecibido, usuarioRecibiendo.getName(), "eeyyyyy");
+                                            }
+                                        }
+                                    }
+                                }
+                                break;
+                            }
+
+                            sendMessageToUser(usuarioRecibido, partes[1], "hola papu como estas perro del mal");
+
+                            break;
+                        case "/ayuda":
+
+                            break;
+                        default:
+                            this.salida.writeUTF("Comando no encontrado /ayuda para la lista de comandos");
+                            break;
+                    }
+                } else {
+                    for (UnCliente cliente : ServidorMulti.clientes.values()) {
+                        cliente.salida.writeUTF("|" + user.getName() + "|:" + mensaje);
+                    }
                 }
             } catch (IOException ex) {
                 System.out.println("Error al leer el mensaje: " + ex.getMessage());
-                break; 
+                break;
             }
         }
     }

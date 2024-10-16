@@ -7,7 +7,7 @@ import java.util.HashMap;
 
 
 public class ServidorMulti {
-    static HashMap<String,UnCliente> clientes = new HashMap<String,UnCliente>();
+    static HashMap<Integer,UnCliente> clientes = new HashMap<>();
 
     public static void main(String[] args) throws IOException {
         ServerSocket servidorSocket = new ServerSocket(8080);
@@ -17,7 +17,7 @@ public class ServidorMulti {
             System.out.println("Conexion establecida con el cliente #" + contador);
             UnCliente unCliente = new UnCliente(s);
             Thread hilo = new Thread(unCliente);
-            clientes.put(Integer.toString(contador), unCliente);
+            clientes.put(contador, unCliente);
             hilo.start();
             contador++;
         }
