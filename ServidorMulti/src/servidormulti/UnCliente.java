@@ -1,5 +1,4 @@
 package servidormulti;
-
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -30,7 +29,7 @@ class UnCliente implements Runnable {
                 salida.writeUTF("Por favor, registre un nombre de usuario:");
                 String nombre = entrada.readUTF();
                 validateUser(nombre);
-                listenForMessages(running);
+                listenForMessages();
             } catch (IOException e) {
                 System.out.println("Error en el hilo: " + e.getMessage());
                 e.printStackTrace();
@@ -140,8 +139,8 @@ class UnCliente implements Runnable {
             salida.writeUTF("El usuario " + usuarioRecibido.getName() + " no esta conectado");
             return;
         }
-        clienteEncontrado.salida.writeUTF("Mensaje de |" + user.getName() + "|: " + mensaje);
-        salida.writeUTF("Mensaje enviado exitosamente");
+        clienteEncontrado.salida.writeUTF("|" + user.getName() + "| te ha susurrado: " + mensaje);
+        salida.writeUTF("Mensaje enviado exitosamente a " + clienteEncontrado.user.getName());
     }
 
     private void notifyOtherUsers(User newUser) throws IOException {
@@ -206,7 +205,7 @@ class UnCliente implements Runnable {
         salida.writeUTF(messageBuilder.toString());
     }
 
-    private void listenForMessages(boolean running) {
+    private void listenForMessages() {
         String mensaje;
         while (true) {
             try {

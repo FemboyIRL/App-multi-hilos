@@ -7,8 +7,10 @@
             <file>file:/home/michi/Desktop/proyectosProgamacion/proyectosJava/App-multi-hilos/ServidorMulti/src/servidormulti/UnCliente.java</file>
             <file>file:/home/michi/Desktop/proyectosProgamacion/proyectosJava/App-multi-hilos/ServidorMulti/src/methods/ServerMethods.java</file>
             <file>file:/home/michi/Desktop/proyectosProgamacion/proyectosJava/App-multi-hilos/ServidorMulti/src/models/User.java</file>
+            <file>file:/home/michi/Desktop/proyectosProgamacion/proyectosJava/App-multi-hilos/ServidorMulti/src/models/Note.java</file>
             <file>file:/home/michi/Desktop/proyectosProgamacion/proyectosJava/App-multi-hilos/ServidorMulti/src/servidormulti/ServidorMulti.java</file>
             <file>file:/home/michi/Desktop/proyectosProgamacion/proyectosJava/App-multi-hilos/ServidorMulti/src/methods/SQLiteConnectionMethods.java</file>
+            <file>file:/home/michi/Desktop/proyectosProgamacion/proyectosJava/App-multi-hilos/ServidorMulti/src/methods/NoteRepository.java</file>
         </group>
     </open-files>
 </project-private>
