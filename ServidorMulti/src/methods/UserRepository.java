@@ -55,7 +55,6 @@ public class UserRepository {
         } catch (SQLException e) {
             System.out.println("Error al obtener usuario: " + e.getMessage());
         }
-
         return user;
     }
 }

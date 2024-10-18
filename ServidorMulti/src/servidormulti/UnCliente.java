@@ -4,14 +4,18 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.Socket;
+import java.util.List;
 import java.util.Map;
+import methods.NoteRepository;
 import methods.UserRepository;
+import models.Note;
 import models.User;
 
 class UnCliente implements Runnable {
 
     final DataOutputStream salida;
     final DataInputStream entrada;
+    boolean running = true;
     User user;
 
     UnCliente(Socket s) throws IOException {
@@ -21,15 +25,19 @@ class UnCliente implements Runnable {
 
     @Override
     public void run() {
-        try {
-            salida.writeUTF("Por favor, registre un nombre de usuario:");
-            String nombre = entrada.readUTF();
-            validateUser(nombre);
-            listenForMessages();
-        } catch (IOException e) {
-            System.out.println("Error en el hilo: " + e.getMessage());
-            e.printStackTrace();
+        while (running) {
+            try {
+                salida.writeUTF("Por favor, registre un nombre de usuario:");
+                String nombre = entrada.readUTF();
+                validateUser(nombre);
+                listenForMessages(running);
+            } catch (IOException e) {
+                System.out.println("Error en el hilo: " + e.getMessage());
+                e.printStackTrace();
+                cerrarCliente();
+            }
         }
+        System.out.println("Hilo del cliente detenido.");
     }
 
     private void validateUser(String nombre) throws IOException {
@@ -40,14 +48,14 @@ class UnCliente implements Runnable {
             registerClient(nombre);
             return;
         }
-        
+
         for (UnCliente clienteConectado : ServidorMulti.usuariosConectados) {
             if (clienteConectado.user.getName().equals(nombre)) {
                 salida.writeUTF("El usuario " + nombre + " ya está conectado.");
                 run();
             }
         }
-        
+
         loginToServer(userFromDB);
 
     }
@@ -61,6 +69,8 @@ class UnCliente implements Runnable {
             this.user = user;
             synchronized (ServidorMulti.usuariosConectados) {
                 ServidorMulti.usuariosConectados.add(this);
+                notifyOtherUsers(this.user);
+                showUserNotes(this.user.getId());
             }
         } else {
             salida.writeUTF("Contraseña incorrecta");
@@ -76,7 +86,36 @@ class UnCliente implements Runnable {
 
         UserRepository.registerUser(user);
 
+        synchronized (ServidorMulti.usuariosConectados) {
+            ServidorMulti.usuariosConectados.add(this);
+            notifyOtherUsers(this.user);
+        }
+
         salida.writeUTF("Registro exitoso. Bienvenido, " + nombre + "!");
+    }
+
+    private void cerrarCliente() {
+        try {
+            notificarDesconexion(this.user);
+
+            if (entrada != null) {
+                entrada.close();
+            }
+            if (salida != null) {
+                salida.close();
+            }
+
+            synchronized (ServidorMulti.usuariosConectados) {
+                ServidorMulti.usuariosConectados.remove(this);
+            }
+
+            running = false;
+
+            System.out.println("Cliente " + user.getName() + " desconectado correctamente.");
+
+        } catch (IOException e) {
+            System.err.println("Error al cerrar el cliente " + user.getName() + ": " + e.getMessage());
+        }
     }
 
     private void sendMessageToUser(User usuarioRecibido, String nombre, String mensaje) throws IOException {
@@ -105,7 +144,69 @@ class UnCliente implements Runnable {
         salida.writeUTF("Mensaje enviado exitosamente");
     }
 
-    private void listenForMessages() {
+    private void notifyOtherUsers(User newUser) throws IOException {
+        for (UnCliente clienteConectado : ServidorMulti.usuariosConectados) {
+            if (!clienteConectado.user.getName().equals(newUser.getName())) {
+                clienteConectado.salida.writeUTF("El usuario " + newUser.getName() + " se ha conectado.");
+            }
+        }
+    }
+
+    private void notificarDesconexion(User newUser) throws IOException {
+        for (UnCliente clienteConectado : ServidorMulti.usuariosConectados) {
+            if (!clienteConectado.user.getName().equals(newUser.getName())) {
+                clienteConectado.salida.writeUTF("El usuario " + newUser.getName() + " se ha desconectado.");
+            }
+        }
+    }
+
+    private void showHelpMessage() throws IOException {
+        StringBuilder helpMessage = new StringBuilder();
+
+        helpMessage.append("=== Mensaje de Ayuda ===\n");
+        helpMessage.append("A continuación se muestran los comandos disponibles:\n");
+        helpMessage.append("1. /msg [-v] <nombre_usuario | -v <usuario1,usuario2,...>> - Envía un mensaje a un usuario o varios usuarios.\n");
+        helpMessage.append("2. /note - Deja una nota para que otros usuarios la vean.\n");
+        helpMessage.append("3. /exit - Cierra la conexión del cliente.\n");
+        helpMessage.append("4. /help - Muestra este mensaje de ayuda.\n");
+        helpMessage.append("=========================\n");
+
+        salida.writeUTF(helpMessage.toString());
+    }
+
+    private void handleNoteCommand(String noteDescription) throws IOException {
+        if (noteDescription == null || noteDescription.trim().isEmpty()) {
+            salida.writeUTF("La nota no puede estar vacía.");
+            return;
+        }
+
+        String timestamp = java.time.LocalDateTime.now().toString();
+        Note note = new Note(0, noteDescription, timestamp);
+        NoteRepository.registerNote(note, this.user.getId());
+
+        salida.writeUTF("Nota guardada: " + noteDescription + ", Fecha: " + timestamp);
+    }
+
+    private void showUserNotes(int userId) throws IOException {
+        List<Note> notes = NoteRepository.getNotesFromDB(userId);
+        StringBuilder messageBuilder = new StringBuilder();
+
+        if (notes.isEmpty()) {
+            messageBuilder.append("No tienes notas guardadas.");
+        } else {
+            messageBuilder.append("Tus notas:\n");
+            for (Note note : notes) {
+                messageBuilder.append("Nota ID: ").append(note.getNoteId())
+                        .append(", Descripción: ").append(note.getMessage())
+                        .append(", Fecha: ").append(note.getTimestamp())
+                        .append("\n");
+            }
+        }
+
+        salida.writeUTF(messageBuilder.toString());
+    }
+
+    private void listenForMessages(boolean running) {
         String mensaje;
         while (true) {
             try {
@@ -114,7 +215,7 @@ class UnCliente implements Runnable {
                     String[] partes = mensaje.split(" ");
                     String comando = partes[0];
                     switch (comando) {
-                        case "/msj":
+                        case "/msg":
                             salida.writeUTF("Ingrese el mensaje a enviar");
                             String mensajeEnviar = entrada.readUTF();
                             User usuarioRecibido = null;
@@ -137,8 +238,17 @@ class UnCliente implements Runnable {
                             }
                             sendMessageToUser(usuarioRecibido, partes[1], mensajeEnviar);
                             break;
-                        case "/ayuda":
-
+                        case "/help":
+                            showHelpMessage();
+                            break;
+                        case "/exit":
+                            this.salida.writeUTF("Cerrando conexion...");
+                            cerrarCliente();
+                            break;
+                        case "/note":
+                            this.salida.writeUTF("Ingrese la nota");
+                            String noteMessage = this.entrada.readUTF();
+                            handleNoteCommand(noteMessage);
                             break;
                         default:
                             this.salida.writeUTF("Comando no encontrado /ayuda para la lista de comandos");
