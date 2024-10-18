@@ -33,13 +33,23 @@ class UnCliente implements Runnable {
     }
 
     private void validateUser(String nombre) throws IOException {
+
         User userFromDB = UserRepository.getUserFromDB(nombre);
 
         if (userFromDB == null) {
             registerClient(nombre);
-        } else {
-            loginToServer(userFromDB);
+            return;
         }
+        
+        for (UnCliente clienteConectado : ServidorMulti.usuariosConectados) {
+            if (clienteConectado.user.getName().equals(nombre)) {
+                salida.writeUTF("El usuario " + nombre + " ya está conectado.");
+                run();
+            }
+        }
+        
+        loginToServer(userFromDB);
+
     }
 
     private void loginToServer(User user) throws IOException {
@@ -49,6 +59,9 @@ class UnCliente implements Runnable {
         if (password.equals(user.getPassword())) {
             salida.writeUTF("Inicio de sesión exitoso. Bienvenido, " + user.getName() + "!");
             this.user = user;
+            synchronized (ServidorMulti.usuariosConectados) {
+                ServidorMulti.usuariosConectados.add(this);
+            }
         } else {
             salida.writeUTF("Contraseña incorrecta");
             run();

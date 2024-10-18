@@ -4,10 +4,13 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.HashMap;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 
 public class ServidorMulti {
     static HashMap<Integer,UnCliente> clientes = new HashMap<>();
+    static List<UnCliente> usuariosConectados = new CopyOnWriteArrayList<>();
 
     public static void main(String[] args) throws IOException {
         ServerSocket servidorSocket = new ServerSocket(8080);
