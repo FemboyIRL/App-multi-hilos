@@ -166,7 +166,7 @@ class UnCliente implements Runnable {
         helpMessage.append("=== Mensaje de Ayuda ===\n");
         helpMessage.append("A continuación se muestran los comandos disponibles:\n");
         helpMessage.append("1. /msg [-v] <nombre_usuario | -v <usuario1,usuario2,...>> - Envía un mensaje a un usuario o varios usuarios.\n");
-        helpMessage.append("2. /note - Deja una nota para que otros usuarios la vean.\n");
+        helpMessage.append("2. /note - Deja una nota para que usted usuarios la vean. [-o] - manda la nota a otro usuario | [-s] - muestra mis notas y las notas enviadas | [-d] - borra una nota \n");
         helpMessage.append("3. /exit - Cierra la conexión del cliente.\n");
         helpMessage.append("4. /help - Muestra este mensaje de ayuda.\n");
         helpMessage.append("=========================\n");
@@ -215,7 +215,27 @@ class UnCliente implements Runnable {
             messageBuilder.append("Tienes " + notes.size() + " nota(s):\n");
             for (Note note : notes) {
                 messageBuilder.append("Nota ID: ").append(note.getNoteId())
-                        .append(", Descripción: ").append(note.getMessage())
+                        .append(", Mensaje: ").append(note.getMessage())
+                        .append(", Fecha: ").append(note.getTimestamp())
+                        .append(", De: ").append(note.getSourceUser())
+                        .append("\n");
+            }
+        }
+
+        salida.writeUTF(messageBuilder.toString());
+    }
+
+    private void showUserSentNotes(String name) throws IOException {
+        List<Note> notes = NoteRepository.getSourceUserSentNotes(name);
+        StringBuilder messageBuilder = new StringBuilder();
+
+        if (notes.isEmpty()) {
+            messageBuilder.append("No has enviado notas aun.");
+        } else {
+            messageBuilder.append("Has enviado " + notes.size() + " nota(s):\n");
+            for (Note note : notes) {
+                messageBuilder.append("Nota ID: ").append(note.getNoteId())
+                        .append(", Mensaje: ").append(note.getMessage())
                         .append(", Fecha: ").append(note.getTimestamp())
                         .append(", De: ").append(note.getSourceUser())
                         .append("\n");
@@ -283,15 +303,18 @@ class UnCliente implements Runnable {
                                     }
                                     break;
                                 } else if (partes[1].equals("-s")) {
+                                    this.salida.writeUTF("============= MIS NOTAS =====================");
                                     showUserNotes(this.user.getId());
+                                    this.salida.writeUTF("============= NOTAS ENVIADAS =====================");
+                                    showUserSentNotes(this.user.getName());
                                     break;
                                 } else if (partes[1].equals("-o")) {
                                     this.salida.writeUTF("Ingrese el nombre del usuario a dejar la nota");
                                     String userName = this.entrada.readUTF();
                                     User userFromDatabase = UserRepository.getUserFromDB(userName);
-                                    if(userFromDatabase == null){
-                                      this.salida.writeUTF("No se encontro el usuario " + userName + " en la base de datos");
-                                      break;
+                                    if (userFromDatabase == null) {
+                                        this.salida.writeUTF("No se encontro el usuario " + userName + " en la base de datos");
+                                        break;
                                     }
                                     this.salida.writeUTF("Ingrese el mensaje de la nota para el usuario " + userFromDatabase.getName());
                                     String noteMessage = this.entrada.readUTF();
@@ -300,7 +323,7 @@ class UnCliente implements Runnable {
                                     NoteRepository.registerNote(note, userFromDatabase.getId());
                                     this.salida.writeUTF("Nota para el usuario " + userFromDatabase.getName() + " registrada exitosamente");
                                     break;
-                                } else if (partes[1].equals("-D")){
+                                } else if (partes[1].equals("-D")) {
                                     this.salida.writeUTF("Ingrese el ID de la nota a eliminar");
                                 }
                             } else {
