@@ -4,12 +4,14 @@ public class Note {
     private int noteId; 
     private String message; 
     private String timestamp; 
+    private String sourceUser;
 
     // Constructor
-    public Note(int noteId, String message, String timestamp) {
+    public Note(int noteId, String message, String timestamp, String sourceUser) {
         this.noteId = noteId;
         this.message = message;
         this.timestamp = timestamp;
+        this.sourceUser = sourceUser;
     }
 
     // Getter para el ID de la nota
@@ -26,8 +28,11 @@ public class Note {
     public String getTimestamp() {
         return timestamp;
     }
+    
+    public String getSourceUser(){
+        return sourceUser;
+    }
 
-    // Método para mostrar el mensaje (opcional)
     @Override
     public String toString() {
         return "Nota ID: " + noteId + ", Mensaje: " + message + ", Fecha: " + timestamp;
