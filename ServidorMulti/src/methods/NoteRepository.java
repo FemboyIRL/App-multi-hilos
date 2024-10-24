@@ -55,6 +55,29 @@ public class NoteRepository {
         }
         return notes;
     }
+    
+    public static List<Note> getMyNotesFromDB(int userId, String sourceName) {
+        String sql = "SELECT * FROM notas WHERE user_id = ? AND source_user = ?";
+        List<Note> notes = new ArrayList<>();
+
+        try (Connection conn = SQLiteConnectionMethods.connectToDatabase();
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, userId);
+            pstmt.setString(2, sourceName);
+            ResultSet rs = pstmt.executeQuery();
+
+            while (rs.next()) {
+                int id = rs.getInt("id");
+                String description = rs.getString("descripcion");
+                String timestamp = rs.getString("timestamp");
+                String sourceUser = rs.getString("source_user");
+                notes.add(new Note(id, description, timestamp, sourceUser));
+            }
+        } catch (SQLException e) {
+            System.out.println("Error al obtener notas: " + e.getMessage());
+        }
+        return notes;
+    }
 
     public static List<Note> getSourceUserSentNotes(String sourceUser) {
         String sql = "SELECT * FROM notas WHERE source_user = ?";

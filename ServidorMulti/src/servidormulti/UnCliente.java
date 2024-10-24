@@ -166,7 +166,7 @@ class UnCliente implements Runnable {
         helpMessage.append("=== Mensaje de Ayuda ===\n");
         helpMessage.append("A continuación se muestran los comandos disponibles:\n");
         helpMessage.append("1. /msg [-v] <nombre_usuario | -v <usuario1,usuario2,...>> - Envía un mensaje a un usuario o varios usuarios.\n");
-        helpMessage.append("2. /note - Deja una nota para que usted usuarios la vean. [-o] - manda la nota a otro usuario | [-s] - muestra mis notas y las notas enviadas | [-d] - borra una nota \n");
+        helpMessage.append("2. /note - Deja una nota para que usted usuarios la vean. [-o] - manda la nota a otro usuario | [-s] - muestra mis notas y las notas enviadas | [-d] - borra una nota | [-D] - borra todas las notas personales \n");
         helpMessage.append("3. /exit - Cierra la conexión del cliente.\n");
         helpMessage.append("4. /help - Muestra este mensaje de ayuda.\n");
         helpMessage.append("=========================\n");
@@ -243,6 +243,15 @@ class UnCliente implements Runnable {
         }
 
         salida.writeUTF(messageBuilder.toString());
+    }
+    
+    private void handleDeleteAllNotes() throws IOException {
+        List<Note> myNotes = NoteRepository.getMyNotesFromDB(this.user.getId(), this.user.getName());
+        for(Note note : myNotes){
+            NoteRepository.deleteNoteById(note.getNoteId());
+            this.salida.writeUTF("Nota con el ID:"+ note.getNoteId() + "Eliminada correctamente");
+        }
+        this.salida.writeUTF("Todas las notas se han eliminado");
     }
 
     private void listenForMessages() {
@@ -324,7 +333,8 @@ class UnCliente implements Runnable {
                                     this.salida.writeUTF("Nota para el usuario " + userFromDatabase.getName() + " registrada exitosamente");
                                     break;
                                 } else if (partes[1].equals("-D")) {
-                                    this.salida.writeUTF("Ingrese el ID de la nota a eliminar");
+                                    handleDeleteAllNotes();
+                                    break;
                                 }
                             } else {
                                 this.salida.writeUTF("Ingrese la nota");
