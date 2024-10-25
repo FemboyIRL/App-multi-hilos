@@ -4,6 +4,8 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.Socket;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import methods.NoteRepository;
@@ -16,6 +18,7 @@ class UnCliente implements Runnable {
     final DataOutputStream salida;
     final DataInputStream entrada;
     boolean running = true;
+    final OffsetDateTime sessionTimeStart = OffsetDateTime.now();
     User user;
 
     UnCliente(Socket s) throws IOException {
@@ -82,7 +85,9 @@ class UnCliente implements Runnable {
         salida.writeUTF("Por favor, registre una contraseña:");
         String password = entrada.readUTF();
 
-        this.user = new User(0, nombre, password);
+        OffsetDateTime lastConnection = OffsetDateTime.now(ZoneOffset.UTC);
+
+        this.user = new User(0, nombre, password, lastConnection, 0);
 
         UserRepository.registerUser(user);
 
@@ -97,6 +102,14 @@ class UnCliente implements Runnable {
     private void cerrarCliente() {
         try {
             notificarDesconexion(this.user);
+
+            OffsetDateTime disconnectTime = OffsetDateTime.now(ZoneOffset.UTC);
+            long sessionDuration = java.time.Duration.between(this.user.getLastConnection(), disconnectTime).getSeconds();
+
+            this.user.addToTotalConnectedTime(sessionDuration);
+            this.user.setLastConnection(disconnectTime);
+
+            UserRepository.updateUserInDB(this.user);
 
             if (entrada != null) {
                 entrada.close();
@@ -244,12 +257,16 @@ class UnCliente implements Runnable {
 
         salida.writeUTF(messageBuilder.toString());
     }
-    
+
+    private void handleTimeCommand() throws IOException {
+
+    }
+
     private void handleDeleteAllNotes() throws IOException {
         List<Note> myNotes = NoteRepository.getMyNotesFromDB(this.user.getId(), this.user.getName());
-        for(Note note : myNotes){
+        for (Note note : myNotes) {
             NoteRepository.deleteNoteById(note.getNoteId());
-            this.salida.writeUTF("Nota con el ID:"+ note.getNoteId() + "Eliminada correctamente");
+            this.salida.writeUTF("Nota con el ID:" + note.getNoteId() + "Eliminada correctamente");
         }
         this.salida.writeUTF("Todas las notas se han eliminado");
     }
@@ -263,6 +280,9 @@ class UnCliente implements Runnable {
                     String[] partes = mensaje.split(" ");
                     String comando = partes[0];
                     switch (comando) {
+                        case "/time":
+                            handleTimeCommand();
+                            break;
                         case "/msg":
                             salida.writeUTF("Ingrese el mensaje a enviar");
                             String mensajeEnviar = entrada.readUTF();
