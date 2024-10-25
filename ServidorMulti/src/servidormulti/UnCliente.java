@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.net.Socket;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import methods.NoteRepository;
@@ -18,7 +19,7 @@ class UnCliente implements Runnable {
     final DataOutputStream salida;
     final DataInputStream entrada;
     boolean running = true;
-    final OffsetDateTime sessionTimeStart = OffsetDateTime.now();
+    OffsetDateTime sessionTimeStart = null;
     User user;
 
     UnCliente(Socket s) throws IOException {
@@ -70,6 +71,9 @@ class UnCliente implements Runnable {
         if (password.equals(user.getPassword())) {
             salida.writeUTF("Inicio de sesión exitoso. Bienvenido, " + user.getName() + "!");
             this.user = user;
+            this.sessionTimeStart = OffsetDateTime.now(ZoneOffset.UTC);
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ssXXX");
+            System.out.println("Conexion establecida con el usuario " + user.getName() + " a las " + sessionTimeStart.format(formatter));
             synchronized (ServidorMulti.usuariosConectados) {
                 ServidorMulti.usuariosConectados.add(this);
                 notifyOtherUsers(this.user);
@@ -99,14 +103,27 @@ class UnCliente implements Runnable {
         salida.writeUTF("Registro exitoso. Bienvenido, " + nombre + "!");
     }
 
+    private String getTimeDifference(OffsetDateTime currentTime) {
+        long sessionDurationInSeconds = java.time.Duration.between(sessionTimeStart, currentTime).getSeconds();
+
+        long hours = sessionDurationInSeconds / 3600;
+        long minutes = (sessionDurationInSeconds % 3600) / 60;
+        long seconds = sessionDurationInSeconds % 60;
+
+        return  hours + ":" + minutes + ":" + seconds;
+    }
+
     private void cerrarCliente() {
         try {
             notificarDesconexion(this.user);
 
             OffsetDateTime disconnectTime = OffsetDateTime.now(ZoneOffset.UTC);
-            long sessionDuration = java.time.Duration.between(this.user.getLastConnection(), disconnectTime).getSeconds();
+            long sessionDurationInSeconds = java.time.Duration.between(sessionTimeStart, disconnectTime).getSeconds();
+            String timeDiff = getTimeDifference(disconnectTime);
 
-            this.user.addToTotalConnectedTime(sessionDuration);
+            System.out.printf(timeDiff);
+
+            this.user.addToTotalConnectedTime(sessionDurationInSeconds);
             this.user.setLastConnection(disconnectTime);
 
             UserRepository.updateUserInDB(this.user);
@@ -259,7 +276,9 @@ class UnCliente implements Runnable {
     }
 
     private void handleTimeCommand() throws IOException {
-
+        String timeDiff = getTimeDifference(OffsetDateTime.now());
+        this.salida.writeUTF("Has estado conectado por " + timeDiff);
+        
     }
 
     private void handleDeleteAllNotes() throws IOException {
