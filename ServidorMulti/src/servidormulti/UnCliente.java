@@ -2,6 +2,9 @@ package servidormulti;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.net.Socket;
 import java.time.OffsetDateTime;
@@ -9,6 +12,7 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
+import java.util.Scanner;
 import methods.NoteRepository;
 import methods.UserRepository;
 import models.Note;
@@ -110,7 +114,7 @@ class UnCliente implements Runnable {
         long minutes = (sessionDurationInSeconds % 3600) / 60;
         long seconds = sessionDurationInSeconds % 60;
 
-        return  hours + ":" + minutes + ":" + seconds;
+        return hours + ":" + minutes + ":" + seconds;
     }
 
     private void cerrarCliente() {
@@ -155,6 +159,15 @@ class UnCliente implements Runnable {
             salida.writeUTF("El usuario " + nombre + " no existe");
             return;
         }
+        if (this.user.isUserBlocked(usuarioRecibido.getId())) {
+            salida.writeUTF("No puedes enviar un mensaje al usuario " + usuarioRecibido.getName() + " porque lo tienes bloqueado.");
+            return;
+        }
+        if (usuarioRecibido.isUserBlocked(this.user.getId())) {
+            salida.writeUTF("No puedes enviar un mensaje al usuario " + usuarioRecibido.getName() + " porque te ha bloqueado.");
+            return;
+        }
+
         for (Map.Entry<Integer, UnCliente> entry : ServidorMulti.clientes.entrySet()) {
             UnCliente cliente = entry.getValue();
             synchronized (cliente) {
@@ -278,7 +291,7 @@ class UnCliente implements Runnable {
     private void handleTimeCommand() throws IOException {
         String timeDiff = getTimeDifference(OffsetDateTime.now());
         this.salida.writeUTF("Has estado conectado por " + timeDiff);
-        
+
     }
 
     private void handleDeleteAllNotes() throws IOException {
@@ -290,6 +303,41 @@ class UnCliente implements Runnable {
         this.salida.writeUTF("Todas las notas se han eliminado");
     }
 
+    public boolean fileExists(String ruta) {
+        return new File(ruta).exists();
+    }
+
+    public String sendFile(String ruta) throws FileNotFoundException {
+        StringBuilder sb = new StringBuilder();
+        Scanner sc = new Scanner(new File(ruta));
+        while (sc.hasNextLine()) {
+            sb.append(sc.nextLine());
+            sb.append("\n");
+        }
+        return sb.toString();
+    }
+
+    public String fileName(String ruta) {
+        return new File(ruta).getName();
+    }
+
+    public void _showBlockedUsersList() throws IOException {
+        List<String> blockedUsers = this.user.getBlockedUsersName();
+        StringBuilder messageBuilder = new StringBuilder();
+
+        if (blockedUsers.isEmpty()) {
+            messageBuilder.append("No has bloqueado a ningún usuario.");
+        } else {
+            messageBuilder.append("Has bloqueado a ").append(blockedUsers.size()).append(" usuario(s):\n");
+            int index = 1;
+            for (String userName : blockedUsers) {
+                messageBuilder.append(index).append(". Usuario: ").append(userName).append("\n");
+                index++;
+            }
+        }
+        this.salida.writeUTF(messageBuilder.toString());
+    }
+
     private void listenForMessages() {
         String mensaje;
         while (true) {
@@ -299,6 +347,89 @@ class UnCliente implements Runnable {
                     String[] partes = mensaje.split(" ");
                     String comando = partes[0];
                     switch (comando) {
+                        case "/block":
+                            if (partes.length > 1) {
+                                if (partes[1].equals("-s")) {
+                                    _showBlockedUsersList();
+                                    break;
+                                }
+                                String nombreUsuarioBloqueado = partes[1];
+                                User usuarioBloqueado = UserRepository.getUserFromDB(nombreUsuarioBloqueado);
+                                if (usuarioBloqueado == null) {
+                                    this.salida.writeUTF("El usuario " + nombreUsuarioBloqueado + " no existe");
+                                    break;
+                                }
+                                try {
+                                    if (!this.user.isUserBlocked(usuarioBloqueado.getId())) {
+                                        this.user.blockUser(usuarioBloqueado.getId());
+                                        boolean updated = UserRepository.updateUserInDB(this.user);
+                                        if (updated) {
+                                            this.salida.writeUTF("Usuario " + nombreUsuarioBloqueado + " bloqueado exitosamente.");
+                                        } else {
+                                            this.salida.writeUTF("Error al bloquear al usuario en la base de datos.");
+                                        }
+                                    } else {
+                                        this.salida.writeUTF("El usuario " + nombreUsuarioBloqueado + " ya está bloqueado.");
+                                    }
+                                } catch (Exception e) {
+                                    this.salida.writeUTF("Error al intentar bloquear al usuario: " + e.getMessage());
+                                }
+
+                            } else {
+                                this.salida.writeUTF("Debe especificar el nombre del usuario a bloquear.");
+                            }
+                            break;
+                        case "/file":
+                            if (partes.length > 1) {
+                                User userFromDatabase = null;
+                                String nombreUsuario = partes[1];
+                                userFromDatabase = UserRepository.getUserFromDB(nombreUsuario);
+                                if (userFromDatabase == null) {
+                                    this.salida.writeUTF("El usuario " + nombreUsuario + " no existe");
+                                    break;
+                                }
+                                if (this.user.isUserBlocked(userFromDatabase.getId())) {
+                                    salida.writeUTF("No puedes enviar un archivo al usuario " + userFromDatabase.getName() + " porque lo tienes bloqueado.");
+                                    break;
+                                }
+                                if (userFromDatabase.isUserBlocked(this.user.getId())) {
+                                    salida.writeUTF("No puedes enviar un archivo al usuario " + userFromDatabase.getName() + " porque te ha bloqueado.");
+                                    break;
+                                }
+
+                                boolean userFound = false;
+                                for (UnCliente cliente : ServidorMulti.usuariosConectados) {
+                                    if (cliente.user.getName().equals(userFromDatabase.getName())) {
+                                        userFound = true;
+                                        this.salida.writeUTF("Ingrese el nombre del archivo a enviar");
+
+                                        String nombreArchivo = this.entrada.readUTF();
+
+                                        if (fileExists(nombreArchivo)) {
+                                            for (UnCliente receptor : ServidorMulti.usuariosConectados) {
+                                                if (receptor.user.getName().equals(userFromDatabase.getName())) {
+                                                    receptor.salida.writeUTF("/file");
+                                                    receptor.salida.writeUTF(sendFile(nombreArchivo));
+                                                    receptor.salida.writeUTF(fileName(nombreArchivo));
+                                                    break;
+                                                }
+                                            }
+                                        } else {
+                                            salida.writeUTF("El archivo no existe");
+                                            break;
+                                        }
+                                        break;
+                                    }
+                                }
+                                if (!userFound) {
+                                    this.salida.writeUTF("El usuario " + nombreUsuario + " no está conectado actualmente");
+                                    break;
+                                }
+                            } else {
+                                this.salida.writeUTF("/file <Usuario>");
+                            }
+                            break;
+
                         case "/time":
                             handleTimeCommand();
                             break;
@@ -362,6 +493,14 @@ class UnCliente implements Runnable {
                                     User userFromDatabase = UserRepository.getUserFromDB(userName);
                                     if (userFromDatabase == null) {
                                         this.salida.writeUTF("No se encontro el usuario " + userName + " en la base de datos");
+                                        break;
+                                    }
+                                    if (this.user.isUserBlocked(userFromDatabase.getId())) {
+                                        salida.writeUTF("No puedes enviar una nota al usuario " + userFromDatabase.getName() + " porque lo tienes bloqueado.");
+                                        break;
+                                    }
+                                    if (userFromDatabase.isUserBlocked(this.user.getId())) {
+                                        salida.writeUTF("No puedes enviar una nota al usuario " + userFromDatabase.getName() + " porque te ha bloqueado.");
                                         break;
                                     }
                                     this.salida.writeUTF("Ingrese el mensaje de la nota para el usuario " + userFromDatabase.getName());
