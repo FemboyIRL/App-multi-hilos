@@ -338,6 +338,35 @@ class UnCliente implements Runnable {
         this.salida.writeUTF(messageBuilder.toString());
     }
 
+    private void _handleUnblockCommand(String nombreUsuarioDesbloquear) throws IOException {
+        // Obtener el usuario a desbloquear
+        User usuarioDesbloquear = UserRepository.getUserFromDB(nombreUsuarioDesbloquear);
+        if (usuarioDesbloquear == null) {
+            this.salida.writeUTF("El usuario " + nombreUsuarioDesbloquear + " no existe");
+            return;
+        }
+
+        try {
+            // Verificar si el usuario ya está bloqueado
+            if (this.user.isUserBlocked(usuarioDesbloquear.getId())) {
+                // Desbloquear el usuario
+                this.user.unblockUser(usuarioDesbloquear.getId());
+
+                // Actualizar en la base de datos
+                boolean updated = UserRepository.updateUserInDB(this.user);
+                if (updated) {
+                    this.salida.writeUTF("Usuario " + nombreUsuarioDesbloquear + " desbloqueado exitosamente.");
+                } else {
+                    this.salida.writeUTF("Error al desbloquear al usuario en la base de datos.");
+                }
+            } else {
+                this.salida.writeUTF("El usuario " + nombreUsuarioDesbloquear + " no está bloqueado.");
+            }
+        } catch (Exception e) {
+            this.salida.writeUTF("Error al intentar desbloquear al usuario: " + e.getMessage());
+        }
+    }
+
     private void listenForMessages() {
         String mensaje;
         while (true) {
@@ -351,6 +380,12 @@ class UnCliente implements Runnable {
                             if (partes.length > 1) {
                                 if (partes[1].equals("-s")) {
                                     _showBlockedUsersList();
+                                    break;
+                                }
+                                if (partes[1].equals("-u")) {
+                                    this.salida.writeUTF("Nombre del usuario a desbloquear");
+                                    String nombre = this.entrada.readUTF();
+                                    _handleUnblockCommand(nombre);
                                     break;
                                 }
                                 String nombreUsuarioBloqueado = partes[1];
